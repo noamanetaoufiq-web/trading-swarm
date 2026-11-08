@@ -7,6 +7,8 @@ on:
 
 jobs:
   review:
+    # Dependabot-triggered runs cannot read repository secrets (they only see "Dependabot secrets"), so the review would fail in seconds.
+    if: github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
