@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+data/*.jsonl
+reports/*
+!reports/.gitkeep
+.pytest_cache/
+data/cache/
+data/runs/
+data/account.json

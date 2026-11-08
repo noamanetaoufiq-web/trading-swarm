@@ -1,0 +1,180 @@
+# ============================================================
+#  Trading Swarm - configuration
+# ============================================================
+account:
+  # Equity is NOT hard-coded: it is read from the linked broker account (MT5 / Binance / IBKR) at the start of every run.
+  # `equity` below is only the starting capital of the built-in PAPER simulator (and the offline/demo fallback).
+  equity: 100                   # USD, paper-simulator starting capital
+  risk_per_trade_pct: 0.5       # % of equity risked per trade
+  max_total_open_risk_pct: 0.5  # XAUUSD/BTC/NAS100 are correlated -> cap the sum
+  max_daily_loss_pct: 2.0       # stop approving trades after this daily loss (equity based: realised + floating)
+  max_weekly_loss_pct: 4.0      # same, since Monday 00:00 UTC
+  max_equity_drawdown_pct: 10.0 # stop approving trades when equity is this far below its recorded peak
+  allow_non_usd: false          # sizing maths assumes USD; a non-USD account is refused unless fx_to_usd is set
+  fx_to_usd: 1.0                # only used when allow_non_usd is true (account currency -> USD)
+
+costs:                          # real-world frictions charged by the backtester / validator, in addition to the spread
+  slippage_stop_entry: true     # STOP entries and every stop-loss exit pay slippage
+  commission_per_lot_usd: 0.0   # round-turn commission per 1.0 lot (check your broker, 0 for spread-only accounts)
+
+risk:                           # HARD rules enforced in code by the Inspector (LLM cannot override)
+  min_rr: 2.0
+  min_confidence: 60
+  news_blackout_minutes: 45     # no entries within +/- N min of high-impact news
+  sl_atr_min: 0.5               # SL distance must be within [min, max] x ATR(1h)
+  sl_atr_max: 4.0
+  max_spread_to_sl_ratio: 0.15
+  max_entry_distance_atr: 3.0   # entry must be within N x ATR(1h) of current price
+  pending_expiry_hours: 24      # paper-trade limit orders expire after this
+  require_broker_feed: false    # true = refuse trades while the instrument is analysed on a proxy feed (e.g. GC=F futures for XAUUSD)
+
+execution:
+  mode: paper                   # paper | live  (live also needs LIVE_TRADING=YES and --live flag)
+  magic_number: 770011
+
+llm:
+  backend: anthropic            # anthropic | mock
+  default_model: claude-sonnet-5-5
+  models:                       # per-agent override (cheap model for simple agents)
+    data_fetcher: claude-haiku-5-5
+    scanner: claude-haiku-5-5
+    social_onchain: claude-haiku-5-5
+    # orchestrator: claude-opus-5-5
+    # inspector: claude-opus-5-5
+  max_tokens: 2500
+  web_search: true              # news + macro agents may use Anthropic web search tool
+  web_search_max_uses: 4
+
+timeframes: ["1m", "15m", "1h", "4h", "1d"]
+
+calendar:
+  url: "https://nfs.faireconomy.media/ff_calendar_thisweek.json"
+  manual_events:                # fallback / extra events you want the Inspector to respect
+    - {title: "FOMC rate decision", time_utc: "2026-12-09T19:00:00Z", currency: USD, impact: High}
+
+news_feeds:
+  - "https://www.fxstreet.com/rss/news"
+  - "https://cointelegraph.com/rss"
+  - "https://www.coindesk.com/arc/outboundfeeds/rss/"
+  - "https://feeds.content.dowjones.io/public/rss/mw_topstories"
+  - "https://www.federalreserve.gov/feeds/press_all.xml"
+
+instruments:
+  XAUUSD:
+    asset_class: commodity
+    yahoo: "GC=F"
+    feed: yahoo                 # yahoo | csv | mt5.  GC=F is gold FUTURES (a proxy), not your broker's XAUUSD CFD.
+    feed_is_proxy: true         # set feed: csv (or mt5) and this to false once you use your broker's own XAUUSD history
+    history_csv: ""             # path to a broker export (time,open,high,low,close,volume) when feed: csv
+    typical_atr_1h: 8.0         # only used for the "can this account trade it?" feasibility panel
+    typical_slippage: 0.15
+    swap_per_lot_per_day_usd: 6.0
+    brokers: [mt5, ibkr]
+    mt5_symbol: XAUUSD
+    ibkr: {secType: CMDTY, symbol: XAUUSD, exchange: SMART, currency: USD, qty_per_lot: 100}
+    usd_per_point_per_lot: 100  # 1 lot = 100 oz -> $100 per $1 move (check your broker!)
+    lot_step: 0.01
+    min_lot: 0.01
+    max_lot: 5
+    typical_spread: 0.30
+    news_currencies: [USD]
+    news_keywords: [gold, xau, bullion, fed, fomc, treasury, yield, dollar, inflation, cpi, powell, warsh, safe haven]
+  BTCUSD:
+    asset_class: crypto
+    yahoo: "BTC-USD"
+    typical_atr_1h: 250.0
+    typical_slippage: 5.0
+    swap_per_lot_per_day_usd: 0.0
+    ccxt_exchange: binance
+    ccxt_symbol: "BTC/USDT"
+    binance_symbol: BTCUSDT
+    brokers: [binance, mt5]
+    mt5_symbol: BTCUSD
+    usd_per_point_per_lot: 1    # 1 lot = 1 BTC
+    lot_step: 0.01
+    min_lot: 0.01
+    max_lot: 5
+    typical_spread: 5.0
+    news_currencies: [USD]
+    news_keywords: [bitcoin, btc, crypto, etf, binance, coinbase, strategy, microstrategy, fed, liquidation, stablecoin]
+  NAS100:
+    asset_class: index
+    yahoo: "^NDX"               # cash index. Alternative: NQ=F (futures, ~24h)
+    typical_atr_1h: 60.0
+    typical_slippage: 1.0
+    swap_per_lot_per_day_usd: 2.0
+    brokers: [mt5, ibkr]
+    mt5_symbol: NAS100          # may be USTEC / US100 / NAS100.cash on your broker
+    ibkr: {secType: FUT, symbol: MNQ, exchange: CME, currency: USD, qty_per_lot: 0.5, expiry: "202612"}
+    usd_per_point_per_lot: 1    # most CFD brokers: $1 per index point per lot
+    lot_step: 0.01
+    min_lot: 0.01
+    max_lot: 20
+    typical_spread: 1.5
+    news_currencies: [USD]
+    news_keywords: [nasdaq, tech, ai, nvidia, apple, microsoft, amazon, alphabet, meta, earnings, fed, yields, semiconductor, chip]
+
+# ============================================================
+#  Strategy (rule-based SMC) - used by the Technical heuristic planner AND replayed by the Backtester (agent 11)
+# ============================================================
+strategy:
+  sl_buffer_atr: 0.25     # SL beyond the zone by this x ATR(1h)
+  min_stop_atr: 0.6       # minimum stop distance in ATR(1h)
+  tp_cap_r: 6.0           # cap take-profit at N x risk
+  fallback_rr: 2.2        # TP in R when no liquidity target >= min_rr exists
+  min_rr: 2.0
+  require_pd_zone: false  # longs only from discount / shorts only from premium
+  zone_tf: 1h
+
+# ============================================================
+#  Backtesting / Monte Carlo / Optimization gate (agent 11)
+# ============================================================
+backtest:
+  enabled: true
+  timeframe: 1h
+  history_bars: 4000          # ~5.5 months of 1h bars (crypto) - more = better statistics, slower first run
+  step_bars: 8                # evaluate the strategy every N bars (speed vs. sample size)
+  entry_expiry_bars: 24       # unfilled limit orders are cancelled after N bars
+  max_hold_bars: 240          # time stop
+  cost_spread_mult: 1.0       # cost per trade = instrument typical_spread x mult (charged in R)
+  cache_hours: 24
+  mc_runs: 1000               # Monte Carlo simulations (10 / 100 / 1000 / 5000 ...)
+  mc_horizon_trades: 100      # trades per simulated path
+  mc_ruin_drawdown_pct: 25    # "ruin" = account drawdown >= this %
+  train_frac: 0.5             # walk-forward, 3 segments: TRAIN picks parameters (first 50%) ...
+  val_frac: 0.2               # ... VALIDATION must also be profitable (next 20%) ...
+                              # ... FINAL TEST (last 30%) is never used to choose anything: only the gate for optimised params reads it
+  final_min_trades: 15        # minimum trades in the final-test slice for an optimised parameter set to be judged
+  # ---- GATE thresholds (setup is refused if it fails them) ----
+  min_trades: 30
+  min_similar: 20             # use "similar setups" sample when at least this many exist
+  rr_similarity: 1.0          # similar = same side and R:R within +/- this
+  min_win_rate_pct: 30
+  breakeven_margin_pct: 2     # win rate must beat the break-even win rate of the setup's R:R by this margin
+  min_expectancy_r: 0.10
+  min_profit_factor: 1.15
+  max_mc_prob_loss_pct: 30    # P(final equity < start) after the horizon
+  max_mc_dd_p95_pct: 25       # 95th percentile max drawdown
+  max_mc_ruin_pct: 3          # P(drawdown >= ruin level)
+  reject_if_insufficient: true
+  oos_min_expectancy_r: 0.05  # an optimised parameter set is only accepted if it also works on the VALIDATION segment
+  oos_min_trades: 10          # minimum trades on the validation segment
+  llm_review: true            # LLM may only VETO (overfitting / regime concerns), never rescue a failed gate
+
+# ============================================================
+#  Agent 12 - Trade Validator (Monte Carlo ladder on the confirmed trade, after the Backtest gate)
+# ============================================================
+validator:
+  enabled: true
+  runs_ladder: [10, 100, 1000, 5000]   # the same trade is simulated this many times; every step is shown in the dashboard
+  block_bars: 24                       # block-bootstrap length (keeps volatility clustering / fat tails of the real 1h data)
+  vol_match: true                      # rescale the historical volatility to today's ATR(1h)
+  seed: 12
+  cost_stress_mult: 2.0                # re-price the strategy edge with spread/slippage x this
+  min_fill_prob_pct: 20                # entry must fill in the expiry window at least this often (random-walk lens)
+  converge_tol_pp: 3.0                 # win rate at 1000 runs vs 5000 runs must agree within this many points
+  edge_margin_pp: 0.0                  # strategy win rate (95% CI lower bound) must beat the random-entry baseline by this
+  min_stress_expectancy_r: 0.05        # strategy expectancy after the cost stress
+  min_verdict: MARGINAL                # BAD is always refused; set GOOD to refuse MARGINAL too
+  marginal_risk_mult: 0.5              # a MARGINAL trade is taken with this fraction of the normal risk (refused if the min lot makes that impossible)
+  llm_review: true                     # LLM may only VETO
