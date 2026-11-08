@@ -1,0 +1,29 @@
+# Automatic review of every pull request with the rules of this repo (CLAUDE.md). Same secret as claude.yml.
+name: Claude PR review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request against CLAUDE.md. Check in this order:
+            1. Safety invariants: no weakening of Inspector hard rules, no look-ahead in backtests, paper by default, live orders still triple-gated,
+               no credential logged / stored / returned by the API, account size still read from the broker.
+            2. Tests added or updated for every behaviour change.
+            3. Correctness of risk / sizing / statistics maths.
+            Be concise: list real problems only, with file and line.
+          claude_args: "--max-turns 8"
