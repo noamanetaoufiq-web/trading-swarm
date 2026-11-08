@@ -1,3 +1,4 @@
+# core runtime (Linux / macOS / Windows)
 anthropic>=0.40.0
 pandas>=2.0
 numpy>=1.24
@@ -11,8 +12,3 @@ ccxt>=4.3
 rich>=13.0
 fastapi>=0.110
 uvicorn[standard]>=0.29
-httpx>=0.27   # only for tests
-pytest>=8.0
-# optional (live execution only):
-# MetaTrader5   # Windows only
-# ib_insync

@@ -8,9 +8,9 @@ Kol task fiha agent dyalo (prompt + schema + fallback). Architecture 3la hsab l'
 ## Quick start (Darija)
 
 ```bash
-cd trading_swarm
+cd trading-swarm
 python -m venv .venv && source .venv/bin/activate      # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt                        # MT5 on Windows: requirements-mt5.txt
 cp .env.example .env                                   # 7t f ANTHROPIC_API_KEY
 
 # 1) test offline (data synthetic + agents rule-based, bla API key)
@@ -35,6 +35,36 @@ python main.py serve --allow-live                    # ONLY if you really want t
 ```
 Report kay-t-sauvegarda f `reports/report_<date>.md` (add `--json` l JSON kamel).
 Symbols aliases: `NASDAQ/NDX/US100 -> NAS100`, `GOLD -> XAUUSD`, `BTC -> BTCUSD`.
+
+## Repository layout (what goes on GitHub)
+```
+trading-swarm/
+|- .github/
+|   |- workflows/ci.yml            tests on Python 3.10 + 3.12, secret scan, headless dashboard smoke (incl. stubbed MT5 linking)
+|   |- workflows/claude.yml        the repo bot: write @claude in an issue / PR comment
+|   |- workflows/claude-review.yml automatic PR review against CLAUDE.md
+|   |- ISSUE_TEMPLATE/  pull_request_template.md  dependabot.yml
+|- CLAUDE.md  AGENTS.md            rules + commands for bots and contributors (safety invariants)
+|- README.md  docs/ARCHITECTURE.md
+|- config.yaml  .env.example       all thresholds / instruments; example env (the real .env is git-ignored)
+|- main.py  server.py              CLI and dashboard server
+|- swarm/  (pipeline, agents/, tools/)   dashboard/   tests/   scripts/check_secrets.py
+|- requirements.txt  requirements-dev.txt  requirements-mt5.txt (Windows)  pytest.ini  Makefile  .gitignore
+```
+**Never commit**: `.env`, `data/` (journals, equity history = your balance, saved account), `reports/`. They are git-ignored and `scripts/check_secrets.py` fails CI if a key or password shows up.
+
+### Put it on GitHub
+```bash
+cd trading-swarm
+git init -b main
+git add .
+git status                      # check: no .env, no data/, no reports/
+git commit -m "Trading Swarm v3"
+git remote add origin https://github.com/<you>/trading-swarm.git      # create the repo as PRIVATE
+git push -u origin main
+```
+### Turn on the bot
+1. Install the Claude GitHub App on the repo (or run `/install-github-app` inside Claude Code), 2. add the repository secret `ANTHROPIC_API_KEY` (Settings > Secrets and variables > Actions), 3. in an issue or PR write `@claude <task>`. Every PR is also reviewed automatically (`claude-review.yml`); delete that file if you do not want it. The bot runs on GitHub's runners with no broker and no MT5: it can edit code and run the offline tests, it cannot trade. **Do not run the trading swarm itself on GitHub Actions with real credentials.**
 
 ## The 12 agents
 

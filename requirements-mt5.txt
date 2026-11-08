@@ -1,0 +1,5 @@
+# MetaTrader 5 linking (Windows only: the package does not exist for Linux / macOS, so CI never installs it)
+-r requirements.txt
+MetaTrader5; sys_platform == "win32"
+# optional: Interactive Brokers
+# ib_insync
